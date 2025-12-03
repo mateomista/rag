@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # 1. BACKEND (FastAPI + LangChain)
+  backend:
+    build: 
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rag_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app  # Hot-reload: cambios en código se reflejan al instante
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CHROMA_DB_URL=http://vector_db:8000
+    depends_on:
+      - vector_db
+    networks:
+      - rag_network
+
+  # 2. FRONTEND (Next.js)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rag_frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # Evita que se borren los módulos locales
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+    depends_on:
+      - backend
+    networks:
+      - rag_network
+
+  # 3. BASE DE DATOS VECTORIAL (ChromaDB)
+  vector_db:
+    image: chromadb/chroma:latest
+    container_name: rag_chromadb
+    ports:
+      - "8001:8000" # Exponemos el puerto de chroma (interno 8000) al 8001 host
+    volumes:
+      - chroma_data:/chroma/.chroma_data # Persistencia de datos
+    networks:
+      - rag_network
+
+volumes:
+  chroma_data:
+
+networks:
+  rag_network:
+    driver: bridge
