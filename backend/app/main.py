@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from app.api.v1.endpoints import chat 
 
-app = FastAPI(title="RAG Backend")
+app = FastAPI(title="Nexus RAG Backend")
 
-# Configurar CORS (para que el Frontend pueda hablar con el Backend)
-# En producción, cambia allow_origins por la URL real de tu frontend
+# Configurar CORS 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -13,10 +13,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Registrar la ruta del chat
+app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
+
 @app.get("/")
 def read_root():
-    return {"status": "ok", "message": "Backend de IA funcionando 🚀"}
-
-@app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+    return {"status": "ok", "message": "Nexus Brain Online 🟢"}

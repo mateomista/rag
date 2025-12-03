@@ -55,30 +55,55 @@ export default function ChatPage() {
     return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (!input.trim()) return;
 
-    
+    // 1. Mostrar mensaje del usuario inmediatamente
     const userMsg: Message = { 
         id: Date.now(), 
         role: "user", 
         content: input,
-        timestamp: getCurrentTime() 
+        timestamp: getCurrentTime()
     };
-    
     setMessages((prev) => [...prev, userMsg]);
-    setInput("");
-    
-    // Respuesta de la IA
-    setTimeout(() => {
-        const aiMsg: Message = { 
-          id: Date.now() + 1, 
-          role: "ai", 
-          content: "Analizando vectores en ChromaDB... He encontrado 3 coincidencias relevantes en 'Arquitectura_Sistema.pdf'.",
-          timestamp: getCurrentTime()
-        };
-        setMessages((prev) => [...prev, aiMsg]);
-    }, 1500);
+    const messageToSend = input; // Guardamos el texto para enviarlo
+    setInput(""); // Limpiamos el input
+
+    // 2. Llamada al Backend 
+    try {
+      // Creamos un mensaje temporal de "Escribiendo..." o esperamos
+      const response = await fetch("http://localhost:8000/api/v1/chat/message", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ message: messageToSend }),
+      });
+
+      if (!response.ok) throw new Error("Error en el servidor");
+
+      const data = await response.json();
+
+      // 3. Mostrar respuesta del Backend
+      const aiMsg: Message = { 
+        id: Date.now() + 1, 
+        role: "ai", 
+        content: data.response, 
+        timestamp: getCurrentTime()
+      };
+      setMessages((prev) => [...prev, aiMsg]);
+
+    } catch (error) {
+      console.error(error);
+      // Mensaje de error en el chat si falla
+      const errorMsg: Message = { 
+        id: Date.now() + 1, 
+        role: "ai", 
+        content: "⚠️ Error: No pude conectar con el cerebro del sistema. Asegúrate de que el Backend está corriendo.",
+        timestamp: getCurrentTime()
+      };
+      setMessages((prev) => [...prev, errorMsg]);
+    }
   };
 
   if (!isMounted) return null;
