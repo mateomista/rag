@@ -6,3 +6,6 @@ langchain-openai
 chromadb
 pydantic
 python-multipart
+langchain-ollama
+pypdf
+langchain-chroma

@@ -44,12 +44,9 @@ services:
     ports:
       - "8001:8000" # Exponemos el puerto de chroma (interno 8000) al 8001 host
     volumes:
-      - chroma_data:/chroma/.chroma_data # Persistencia de datos
+      - ./chroma_data:/chroma/.chroma_data # Persistencia de datos
     networks:
       - rag_network
-
-volumes:
-  chroma_data:
 
 networks:
   rag_network:

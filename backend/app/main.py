@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api.v1.endpoints import chat 
+from app.api.v1.endpoints import chat, documents
 
 app = FastAPI(title="Nexus RAG Backend")
 
@@ -15,6 +15,7 @@ app.add_middleware(
 
 # Registrar la ruta del chat
 app.include_router(chat.router, prefix="/api/v1/chat", tags=["chat"])
+app.include_router(documents.router, prefix="/api/v1/documents", tags=["documents"])
 
 @app.get("/")
 def read_root():
