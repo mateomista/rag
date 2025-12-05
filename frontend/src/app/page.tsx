@@ -70,22 +70,36 @@ export default function ChatPage() {
     if (!input.trim()) return;
 
     const userText = input;
-    setInput(""); // Limpiar input inmediatamente
+    setInput("");
     setIsThinking(true);
 
-    // Agregar mensaje usuario
-    setMessages(prev => [...prev, { 
+    // 1. Guardamos el mensaje nuevo en el estado local
+    const newMsg: Message = { 
       id: Date.now(), 
       role: "user", 
       content: userText, 
       timestamp: getCurrentTime() 
-    }]);
+    };
+       
+    const updatedMessages = [...messages, newMsg];
+    
+    setMessages(updatedMessages);
 
     try {
+      // 2. Preparamos el historial para enviarlo limpio al backend
+     
+      const historyPayload = messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
       const response = await fetch("http://localhost:8000/api/v1/chat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userText }),
+        body: JSON.stringify({ 
+            message: userText,
+            history: historyPayload
+        }),
       });
 
       if (!response.ok) throw new Error("Server error");
@@ -103,7 +117,7 @@ export default function ChatPage() {
       setMessages(prev => [...prev, { 
         id: Date.now(), 
         role: "ai", 
-        content: "⚠️ **Error:** Conexión fallida con el modelo.",
+        content: "⚠️ **Error:** No pude conectar con el modelo.",
         timestamp: getCurrentTime() 
       }]);
     } finally {
