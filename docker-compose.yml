@@ -29,13 +29,15 @@ services:
       - "3000:3000"
     volumes:
       - ./frontend:/app
-      - /app/node_modules # Evita que se borren los módulos locales
+      - /app/node_modules
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+      - NEXT_PUBLIC_API_URL=http://backend:8000/api/v1
     depends_on:
       - backend
     networks:
       - rag_network
+
+
 
   # 3. BASE DE DATOS VECTORIAL (ChromaDB)
   vector_db:
