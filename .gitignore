@@ -1,0 +1,45 @@
+# --- SISTEMA OPERATIVO & IDEs ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# --- SEGURIDAD ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+
+# --- BACKEND (Python) ---
+backend/__pycache__/
+backend/*.pyc
+backend/venv/
+backend/.venv/
+backend/env/
+backend/.pytest_cache/
+backend/chroma_data/  # Por si acaso se crea dentro
+*.egg-info/
+
+# --- FRONTEND (Node/Next.js) ---
+node_modules/
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/dist/
+frontend/.vercel/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- BASE DE DATOS LOCAL (ChromaDB) ---
+
+chroma_data/
+
+# --- DOCKER ---
+
+.docker/
