@@ -1,6 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.endpoints import chat, documents
+from app.core.database import create_db_and_tables
+
+create_db_and_tables()
 
 app = FastAPI(title="Nexus RAG Backend")
 
