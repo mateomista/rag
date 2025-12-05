@@ -10,8 +10,11 @@ chat_service = ChatService()
 @router.post("/message", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
     try:
-   
-        response_text, sources = chat_service.generate_rag_response(request.message)
+        # Pasamos el mensaje Y el historial al servicio
+        response_text, sources = chat_service.generate_rag_response(
+            request.message, 
+            request.history
+        )
 
         return ChatResponse(
             response=response_text,
@@ -19,7 +22,4 @@ async def chat_endpoint(request: ChatRequest):
         )
     except Exception as e:
         print(f"Error en chat: {e}")
-        return ChatResponse(
-            response="Lo siento, ocurrió un error interno en el sistema de IA.",
-            sources=["Error del Servidor"]
-        )
+        raise HTTPException(status_code=500, detail=str(e))
