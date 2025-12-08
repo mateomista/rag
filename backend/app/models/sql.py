@@ -19,3 +19,8 @@ class ChatMessage(SQLModel, table=True):
     # Relación: Un mensaje pertenece a una sesión
     session_id: int = Field(foreign_key="chatsession.id")
     session: ChatSession = Relationship(back_populates="messages")
+    
+class UploadedDocument(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    filename: str
+    created_at: datetime = Field(default_factory=datetime.utcnow)
