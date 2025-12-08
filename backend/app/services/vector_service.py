@@ -60,3 +60,18 @@ class VectorService:
             # Siempre borrar el archivo temporal, incluso si falla
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
+                
+    def delete_file_from_chroma(self, filename: str):
+        """Elimina los vectores asociados a un archivo específico"""
+        try:
+            # Reconstruimos el nombre de la fuente tal como se guardó (temp_nombre.pdf)
+            # Nota: PyPDFLoader guarda la ruta relativa como 'source'
+            source_id = f"temp_{filename}"
+            
+            # Accedemos a la colección cruda para borrar por metadatos (where clause)
+            self.db._collection.delete(where={"source": source_id})
+            print(f"🗑️ Vectores eliminados para: {source_id}")
+            return True
+        except Exception as e:
+            print(f"Error borrando de Chroma: {e}")
+            return False

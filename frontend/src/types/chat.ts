@@ -17,3 +17,9 @@ export interface DocumentItem {
   name: string;
   status: DocStatus;
 }
+
+export interface ChatSession {
+  id: number;
+  created_at: string;
+  title: string;
+}

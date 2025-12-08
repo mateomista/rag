@@ -63,3 +63,11 @@ async def get_history(session_id: int):
         return frontend_history
     except Exception as e:
         raise HTTPException(status_code=404, detail="Sesión no encontrada")
+    
+@router.get("/sessions")
+async def get_sessions():
+    try:
+        sessions = history_service.get_all_sessions()
+        return sessions
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
