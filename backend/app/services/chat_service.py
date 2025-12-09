@@ -1,20 +1,37 @@
+import os
 from langchain_ollama import ChatOllama
+from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain.chains.history_aware_retriever import create_history_aware_retriever
 from langchain.chains.retrieval import create_retrieval_chain
 from langchain.chains.combine_documents import create_stuff_documents_chain
-
 from app.services.vector_service import VectorService
 
 class ChatService:
     def __init__(self):
-        # 1. Configuración del LLM
-        self.llm = ChatOllama(
-            model="llama3.2",
-            base_url="http://host.docker.internal:11434",
-            temperature=0.3
-        )
+        # 1. DETECTAR PROVEEDOR
+        provider = os.getenv("LLM_PROVIDER", "ollama")
+        print(f"🧠 Inicializando Cerebro con: {provider.upper()}")
+
+        if provider == "groq":
+            api_key = os.getenv("GROQ_API_KEY")
+            if not api_key:
+                raise ValueError("GROQ_API_KEY no encontrada en variables de entorno")
+            
+            self.llm = ChatGroq(
+                model="llama-3.1-8b-instant", 
+                api_key=api_key,
+                temperature=0.3
+            )
+        else:
+            # Fallback a Ollama Local
+            self.llm = ChatOllama(
+                model="llama3.2",
+                base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434"),
+                temperature=0.3
+            )
+
         self.vector_service = VectorService()
 
         # 2. PROMPT DE CONTEXTUALIZACIÓN
@@ -52,7 +69,7 @@ class ChatService:
             elif msg.role == "ai":
                 chat_history.append(AIMessage(content=msg.content))
 
-        # B. Crear Retriever con Historial
+        # B. Crear Retriever
         retriever = self.vector_service.get_retriever(k=3)
         history_aware_retriever = create_history_aware_retriever(
             self.llm, retriever, self.contextualize_q_prompt
@@ -70,7 +87,6 @@ class ChatService:
             "chat_history": chat_history
         })
         
-        # Extraer fuentes
         sources = []
         if "context" in result:
             sources = list(set([doc.metadata.get("source", "Desconocido") for doc in result["context"]]))

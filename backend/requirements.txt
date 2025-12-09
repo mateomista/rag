@@ -10,3 +10,4 @@ langchain-chroma==0.1.4
 chromadb
 pypdf
 sqlmodel
+langchain-groq
