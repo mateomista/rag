@@ -3,42 +3,70 @@ from langchain_ollama import ChatOllama
 from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
-from langchain.chains.history_aware_retriever import create_history_aware_retriever
-from langchain.chains.retrieval import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.output_parsers import StrOutputParser
 from app.services.vector_service import VectorService
 
 class ChatService:
     def __init__(self):
-        # 1. DETECTAR PROVEEDOR
+        self.vector_service = VectorService()
+        
+        # 1. DETECTAR PROVEEDOR (Nube vs Local)
         provider = os.getenv("LLM_PROVIDER", "ollama")
         print(f"🧠 Inicializando Cerebro con: {provider.upper()}")
 
         if provider == "groq":
             api_key = os.getenv("GROQ_API_KEY")
-            if not api_key:
-                raise ValueError("GROQ_API_KEY no encontrada en variables de entorno")
-            
+            # Modelo Creativo (Para responder)
             self.llm = ChatGroq(
-                model="llama-3.1-8b-instant", 
+                model="llama-3.3-70b-versatile",
                 api_key=api_key,
-                temperature=0.3
+                temperature=0
+            )
+            # Modelo Estricto (Para reformular preguntas)
+            self.llm_strict = ChatGroq(
+                model="llama-3.3-70b-versatile",
+                api_key=api_key,
+                temperature=0
             )
         else:
             # Fallback a Ollama Local
+            ollama_url = os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434")
+            # Modelo Creativo
             self.llm = ChatOllama(
                 model="llama3.2",
-                base_url=os.getenv("OLLAMA_BASE_URL", "http://host.docker.internal:11434"),
+                base_url=ollama_url,
                 temperature=0.3
             )
+            # Modelo Estricto
+            self.llm_strict = ChatOllama(
+                model="llama3.2",
+                base_url=ollama_url,
+                temperature=0
+            )
 
-        self.vector_service = VectorService()
+        # 2. PROMPT DE REFORMULACIÓN (Estricto)
+        contextualize_q_system_prompt = """
+            <task>
+            Analyze the chat history and the latest user input.
+            Construct a standalone search query that represents the user's intent.
+            </task>
 
-        # 2. PROMPT DE CONTEXTUALIZACIÓN
-        contextualize_q_system_prompt = """Dado un historial de chat y la última pregunta del usuario 
-        (que podría hacer referencia al contexto del historial), formula una pregunta independiente 
-        que pueda entenderse sin el historial. NO respondas a la pregunta, solo reformúlala si es necesario 
-        o devuélvela tal cual si ya es clara."""
+            <rules>
+            - OUTPUT ONLY THE QUERY STRING.
+            - DO NOT ANSWER THE QUESTION.
+            - DO NOT ADD "The query is...".
+            - IF NO CONTEXT IS NEEDED, RETURN INPUT AS IS.
+            </rules>
+
+            Chat History:
+            {chat_history}
+
+            Latest Input:
+            {input}
+
+            Standalone Query:
+            """
+
         
         self.contextualize_q_prompt = ChatPromptTemplate.from_messages([
             ("system", contextualize_q_system_prompt),
@@ -47,9 +75,8 @@ class ChatService:
         ])
 
         # 3. PROMPT DE RESPUESTA (QA)
-        qa_system_prompt = """Eres un asistente experto. 
-        Usa los siguientes fragmentos de contexto recuperado para responder la pregunta. 
-        Si no sabes la respuesta, di simplemente que no lo sabes. 
+        qa_system_prompt = """Eres Nexus AI. Usa el siguiente contexto para responder.
+        Si no sabes, di que no sabes.
         
         CONTEXTO:
         {context}"""
@@ -69,26 +96,37 @@ class ChatService:
             elif msg.role == "ai":
                 chat_history.append(AIMessage(content=msg.content))
 
-        # B. Crear Retriever
+        # B. Lógica de Reformulación Inteligente (Usando llm_strict)
+        search_query = message
+        if chat_history:
+            rephrase_chain = self.contextualize_q_prompt | self.llm_strict | StrOutputParser()
+            try:
+                search_query = rephrase_chain.invoke({
+                    "chat_history": chat_history,
+                    "input": message
+                })
+                print(f"🔄 Query reformulada: {search_query}")
+            except Exception as e:
+                print(f"⚠️ Falló reformulación, usando original: {e}")
+
+        # C. Recuperar Documentos
         retriever = self.vector_service.get_retriever(k=3)
-        history_aware_retriever = create_history_aware_retriever(
-            self.llm, retriever, self.contextualize_q_prompt
-        )
+        docs = retriever.invoke(search_query)
 
-        # C. Crear Cadena de Documentos
-        question_answer_chain = create_stuff_documents_chain(self.llm, self.qa_prompt)
-
-        # D. Crear Cadena RAG Final
-        rag_chain = create_retrieval_chain(history_aware_retriever, question_answer_chain)
-
-        # E. Ejecutar
-        result = rag_chain.invoke({
-            "input": message,
-            "chat_history": chat_history
-        })
-        
+        # D. Extraer Fuentes
         sources = []
-        if "context" in result:
-            sources = list(set([doc.metadata.get("source", "Desconocido") for doc in result["context"]]))
+        context_text = ""
+        if docs:
+            sources = list(set([doc.metadata.get("source", "Desconocido") for doc in docs]))
+            context_text = "\n\n".join([doc.page_content for doc in docs])
 
-        return result["answer"], sources
+        # E. Streaming de Respuesta (Usando llm normal)
+        rag_chain = self.qa_prompt | self.llm | StrOutputParser()
+
+        token_generator = rag_chain.stream({
+            "context": context_text,
+            "chat_history": chat_history,
+            "input": message
+        })
+
+        return token_generator, sources
