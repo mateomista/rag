@@ -8,21 +8,25 @@ interface ChatContainerProps {
 }
 
 export function ChatContainer({ messages }: ChatContainerProps) {
-  const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Lógica de Auto-Scroll encapsulada aquí
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  
   useEffect(() => {
-    if (scrollRef.current) {
-      setTimeout(() => {
-        scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 100);
+    const el = containerRef.current;
+    if (el) {
+      el.scrollTo({
+        top: el.scrollHeight,
+        behavior: "smooth",
+      });
     }
   }, [messages]);
 
   return (
     <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* Pasamos el ref directamente al scroll area interno */}
       <ScrollArea className="h-full w-full p-4 md:p-8">
-        <div className="max-w-3xl mx-auto space-y-8">
+        <div ref={containerRef} className="max-w-3xl mx-auto space-y-8">
           {messages.map((msg) => (
             <ChatMessage 
               key={msg.id}
@@ -32,8 +36,9 @@ export function ChatContainer({ messages }: ChatContainerProps) {
               sources={msg.sources}
             />
           ))}
-          {/* Elemento invisible para el scroll */}
-          <div ref={scrollRef} className="h-1" />
+
+          {/* marcador para el scroll */}
+          <div className="h-1" />
         </div>
       </ScrollArea>
     </div>

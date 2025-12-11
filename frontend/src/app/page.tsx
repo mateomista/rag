@@ -146,54 +146,93 @@ export default function ChatPage() {
     }
   };
 
-  const handleSend = async () => {
+const handleSend = async () => {
     if (!input.trim()) return;
 
     const userText = input;
     setInput("");
     setIsThinking(true);
 
-    // Agregar mensaje del usuario localmente
+    // 1. Agregar mensaje usuario
     const newMsg: Message = { id: Date.now(), role: "user", content: userText, timestamp: getCurrentTime() };
-    const currentMessages = [...messages, newMsg];
-    setMessages(currentMessages);
+    setMessages(prev => [...prev, newMsg]);
 
     try {
+      // 2. Crear mensaje "fantasma" de la IA para ir rellenándolo
+      const aiMsgId = Date.now() + 1;
+      const aiMsg: Message = { 
+        id: aiMsgId, 
+        role: "ai", 
+        content: "", // Empieza vacío
+        timestamp: getCurrentTime() 
+      };
+      setMessages(prev => [...prev, aiMsg]);
+
+      // 3. Iniciar petición Fetch
       const response = await fetch("http://localhost:8000/api/v1/chat/message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-            message: userText, 
-            session_id: sessionId 
-        }),
+        body: JSON.stringify({ message: userText, session_id: sessionId }),
       });
 
-      if (!response.ok) throw new Error("Server error");
-      const data = await response.json();
+      if (!response.ok || !response.body) throw new Error("Error de conexión");
 
-      // Si el backend creó una sesión nueva, actualizamos el ID y la lista lateral
-      if (data.session_id && data.session_id !== sessionId) {
-        setSessionId(data.session_id);
-        localStorage.setItem("nexus_session_id", data.session_id.toString());
-        fetchSessions(); // Refrescar sidebar de historial
+      // 4. LEER EL STREAM
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let accumulated = "";
+
+      const updateAITyping = (text: string) => {
+        setMessages(prev =>
+          prev.map(msg =>
+            msg.id === aiMsgId ? { ...msg, content: text } : msg
+          )
+        );
+      };
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        const lines = chunk.split("\n").filter(line => line.trim() !== "");
+
+        for (const line of lines) {
+          try {
+            const json = JSON.parse(line);
+
+            if (json.type === "content") {
+              for (const char of json.data) {
+                accumulated += char;
+                updateAITyping(accumulated);
+
+                await new Promise(r => setTimeout(r, 8));
+              }
+            }
+
+            if (json.type === "meta") {
+              if (json.session_id) {
+                setSessionId(json.session_id);
+                localStorage.setItem("nexus_session_id", json.session_id.toString());
+                if (json.session_id !== sessionId) fetchSessions();
+              }
+              setMessages(prev =>
+                prev.map(msg =>
+                  msg.id === aiMsgId ? { ...msg, sources: json.sources } : msg
+                )
+              );
+            }
+          } catch (e) {
+            console.error("Error parseando chunk JSON", e);
+          }
+        }
       }
 
-      // Agregar respuesta de la IA
-      setMessages(prev => [...prev, { 
-        id: Date.now(), 
-        role: "ai", 
-        content: data.response, 
-        sources: data.sources, 
-        timestamp: getCurrentTime() 
-      }]);
 
     } catch (error) {
-        setMessages(prev => [...prev, { 
-            id: Date.now(), 
-            role: "ai", 
-            content: "⚠️ **Error:** No pude conectar con el cerebro.", 
-            timestamp: getCurrentTime() 
-        }]);
+      setMessages(prev => [...prev, { 
+        id: Date.now(), role: "ai", content: "⚠️ Error de red.", timestamp: getCurrentTime() 
+      }]);
     } finally {
       setIsThinking(false);
     }

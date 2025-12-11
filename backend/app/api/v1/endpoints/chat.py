@@ -3,44 +3,59 @@ from app.models.chat import ChatRequest, ChatResponse
 from app.services.chat_service import ChatService
 from app.services.history_service import HistoryService 
 from typing import List
+import json
+from fastapi.responses import StreamingResponse
 
 router = APIRouter()
 chat_service = ChatService()
 history_service = HistoryService() 
 
-@router.post("/message", response_model=ChatResponse)
+@router.post("/message") 
 async def chat_endpoint(request: ChatRequest):
     try:
         # 1. Gestión de Sesión
         current_session_id = request.session_id
         if not current_session_id:
-            # Si no viene ID, creamos una sesión nueva en la DB
             current_session_id = history_service.create_session()
-            print(f"🆕 Nueva sesión creada: {current_session_id}")
 
-        # 2. Recuperar historial real de la DB
         db_history = history_service.get_chat_history(current_session_id)
         
-        # 3. Guardar el mensaje del usuario ANTES de procesar
+        # 2. Guardar mensaje del usuario
         history_service.add_message(current_session_id, "user", request.message)
 
-        # 4. Generar respuesta (pasándole el historial de la DB)
-        response_text, sources = chat_service.generate_rag_response(
+        # 3. Obtener el generador del servicio
+        token_generator, sources = chat_service.generate_rag_response(
             request.message, 
             db_history
         )
 
-        # 5. Guardar la respuesta de la IA
-        history_service.add_message(current_session_id, "ai", response_text)
+        # 4. DEFINIR EL GENERADOR DE STREAMING
+        async def stream_response():
+            full_response = ""
+            
+            # A. Enviar tokens de texto uno por uno
+            for token in token_generator:
+                full_response += token
+                # Formato NDJSON
+                data = json.dumps({"type": "content", "data": token})
+                yield data + "\n"
+            
+            # B. Al terminar, guardar en la base de datos
+            history_service.add_message(current_session_id, "ai", full_response)
+            
+            # C. Enviar metadatos al final (Fuentes y ID de sesión)
+            meta_data = json.dumps({
+                "type": "meta", 
+                "sources": sources, 
+                "session_id": current_session_id
+            })
+            yield meta_data + "\n"
 
-        return ChatResponse(
-            response=response_text,
-            sources=sources,
-            session_id=current_session_id # Devolvemos el ID al front
-        )
+        # 5. Devolver la respuesta en streaming
+        return StreamingResponse(stream_response(), media_type="application/x-ndjson")
 
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error en chat: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     
 @router.get("/history/{session_id}")
