@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y build-essential curl && rm -rf /var/lib
 
 # Copiamos y instalamos las dependencias de Python
 COPY requirements.txt .
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copiamos todo el código del backend

@@ -11,3 +11,5 @@ chromadb
 pypdf
 sqlmodel
 langchain-groq
+langchain-huggingface
+sentence-transformers
