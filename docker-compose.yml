@@ -48,6 +48,7 @@ services:
       - "8001:8000" # Exponemos el puerto de chroma (interno 8000) al 8001 host
     volumes:
       - ./chroma_data:/chroma/.chroma_data # Persistencia de datos
+      - ./faiss_index:/app/faiss_index
     networks:
       - rag_network
 

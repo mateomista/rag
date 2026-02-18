@@ -21,13 +21,13 @@ class ChatService:
             self.llm = ChatGroq(
                 model="llama-3.3-70b-versatile",
                 api_key=groq_api_key,
-                temperature=0.3
+                temperature=0
             )
         else:
             self.llm = ChatOllama(
                 model="llama3.2",
                 base_url=ollama_url,
-                temperature=0.3
+                temperature=0
             )
 
         # 2. PROMPT UNIFICADO CON MEMORIA
